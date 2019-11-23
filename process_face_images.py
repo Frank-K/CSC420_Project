@@ -1,7 +1,7 @@
 import numpy as np
 import os
 import cv2
-
+import random
 
 def get_training_data(path):
     '''Returns two lists: a list of the names of the image files and a list of the bounding boxes'''
@@ -68,16 +68,17 @@ def draw_on_face(scaled_box, scaled_image):
 
 # works for x and y
 # make sure to use width for x, and height for y
-def generate_offsets(original_coordinate, bounding_box_param):
+def generate_offsets(original_coordinate, bounding_box_param, image_end):
     difference = 12 - bounding_box_param
     x_crops_start = []
     x_crops_end = []
     new_box_start = []
     for i in range(difference +  1):
         x_crop_start = original_coordinate - difference + i
-        if (x_crop_start >= 0): # edge case
+        x_crops_end = original_coordinate + bounding_box_param + i
+        if (x_crop_start >= 0 and x_crops_end <= image_end): # edge case
             x_crops_start.append(x_crop_start)
-            x_crops_end.append(original_coordinate + bounding_box_param + i)
+            x_crops_end.append()
 
             # new bounding box coordinates are on a 0 to 1 scale
             new_x = (original_coordinate - x_crop_start) / 12
@@ -141,8 +142,11 @@ def main():
             y_difference = 12 - height
             # print(x_difference, y_difference)
 
-            x_crops_start, x_crops_end, x_new_box_start = generate_offsets(x, width)
-            y_crops_start, y_crops_end, y_new_box_start = generate_offsets(y, height)
+            y_end = scaled_image.shape[0]
+            x_end = scaled_image.shape[1]
+
+            x_crops_start, x_crops_end, x_new_box_start = generate_offsets(x, width, x_end)
+            y_crops_start, y_crops_end, y_new_box_start = generate_offsets(y, height, y_end)
             
             # width and height are simply divide by 12 and identical amongst these cropped images
             new_width = width / 12
@@ -185,6 +189,57 @@ def main():
         # break
 
     return
+
+def gen_neg_training(name, bbox, count):
+    '''Generates 12x12 pixel images with no faces'''
+    image = cv2.imread("../WIDER_train/images/" + name)
+    scales=create_scales(bbox)
+    print(scales)
+    bbox = [bbox[0],bbox[1],bbox[0]+bbox[2],bbox[1]+bbox[3]]
+    a = name.split('/')
+    b = a[1][:-4]
+    
+    #For each scale:
+    for j in range(4):
+        img=scale_image(image,scales[j])
+        box = scale_box(bbox,scales[j])
+        height, width, _ = img.shape
+        i=0
+        y1=0
+        if width<=13 or height<=13:
+            i=16
+        while i<15:
+            x=random.randint(0,width-13)
+            y=random.randint(0,height-13)
+            if y1>100: #If something went wrong and it keeps on falling into "continue", just break out of the loop
+                i=16
+                break
+            if [x,y]>[box[0]-12,box[1]-12] and [x,y]<[box[2],box[3]]: #If the 12x12 box overlaps with the bounding box, draw another box
+                y1=y1+1
+                continue
+            else: #If it doesn't overlap, crop the image.
+                crop_img = img[y:y+12,x:x+12]
+                cv2.imwrite(f'./FaceTracker/neg_train/{count}.bmp',crop_img)
+                count = count+1
+                i=i+1
+    print("count",count)
+    return count
+
+def main2():
+    imagepath = '../WIDER_train/images/'
+    path = '../wider_face_split/wider_face_train_bbx_gt.txt'
+    name, box = get_training_data(path)
+
+    count = 0
+
+    for i in range(len(name)):
+        filename = name[i]
+        bounding_box = box[i]
+
+        count = gen_neg_training(filename, bounding_box, count)
+        if count > 4214:
+            return
+        
 
 if __name__ == '__main__':
     main2()
