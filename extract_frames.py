@@ -8,5 +8,5 @@ while success:
   success,image = vidcap.read()
   print('Read a new frame: ', success)
   count += 1
-  if count >= 1500:
+  if count >= 1000:
     success = False
