@@ -1,0 +1,1 @@
+At first we tried to implement the face detector. But it was too advanced and our attempts resulted in no results. So we ended up using the pretrained face detection models.
